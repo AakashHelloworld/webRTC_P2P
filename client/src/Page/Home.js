@@ -8,13 +8,13 @@ export const Home = () => {
     const navigate = useNavigate();
 
     const [name, setName] = useState("")
-    const [roomId, setRoomId] = useState()
+    const [roomId, setRoomId] = useState("")
 
 
     const submitHandler = (e)=>{
         e.preventDefault();
         if(!name || !roomId) return;
-        console.log(name, roomId)
+        // console.log(name, roomId)
         socket.emit("send-userId-roomid", {name, roomId})
     }
 
