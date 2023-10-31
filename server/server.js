@@ -18,11 +18,23 @@ io.on("connection", (socket)=>{
         io.to(socket.id).emit("room:join", {name, roomId});
     })
     socket.on("call:sendoffer", ({tonext, offer})=>{
-        console.log(tonext, offer)
-        socket.to(tonext).emit("collect:offer", {from:socket.id, offer} )
+        // console.log(tonext, offer)
+        io.to(tonext).emit("collect:offer", {from:socket.id, offer} )
 })
-    socket.on("call:sendanswer", ({to, answer})=>{
-        console.log(to, answer)
+
+    socket.on("call:sendAnswer", ({tonext, Answer})=>{
+        // console.log(tonext, Answer
+        io.to(tonext).emit("collect:pleaseAcceptAnswer", {from:socket.id, Answer} )
+    })
+
+    socket.on("peer:nego:needed", ({to, offer})=>{
+        io.to(to).emit("peer:nego:needed", {from:socket.id, offer})
+    })
+
+    socket.on("peer:nego:done", ({to, ans})=>{
+        io.to(to).emit("peer:nego:final", { from: socket.id, ans });
     })
 
 })
+
+

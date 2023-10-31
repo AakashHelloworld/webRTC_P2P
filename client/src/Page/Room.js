@@ -1,77 +1,134 @@
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { useSocket } from "../context/SocketProvider";
-import {peerConnection, createoffer, getAnswer} from "../WebRTC/webrtcService"
+import {peerConnection, createoffer, getAnswer, setAnswertoLocalDescription} from "../WebRTC/webrtcService"
 export const Room = () => {
     const [meroVideo, setmeroVideo] = useState()
-    const [otheruser, setOtheruser] = useState({
-        name: "",
-        id: ""
-    });
-    const socket = useSocket();
-    const videoRef = useRef();
+    const [timroVideo, settimroVideo] = useState()
+    const [otheruser, setOtheruser] = useState("");
 
-    const mySteamHandler = async() =>{
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: true,
-      });
-      setmeroVideo(stream)
+    const socket = useSocket();
+    const meroVideoRef = useRef();
+    const timroVideoRef = useRef();
+
+    const mySteamHandler = async () => {
+      navigator.mediaDevices.getUserMedia({ audio: true, video: true })
+        .then(stream => {
+          setmeroVideo(stream);
+        })
+        .catch(err => console.error(err));
     }
+    
 
     const createOfferHandler = async(id)=>{
       const offer = await createoffer();
       if(offer){
-        // console.log(offer)
       socket.emit("call:sendoffer", {tonext:id, offer})
       }
     }
 
-    const collectOfferHandler = async(from ,offer)=>{
-      if(offer){
-      const answer = await getAnswer(offer);
-      console.log(answer)
-    }}
-    useEffect(()=>{
-      if(otheruser.id){
-        createOfferHandler(otheruser.id)
-      }
-    },[otheruser])
+    const setLocalDescriptionofAnswer = async(answer)=>{
+      const condition = await setAnswertoLocalDescription(answer);
+      console.log("Call Accepted 1", condition)
+    }
+
+    const sendAnswer = async(from ,offer) => {
+      console.log("I am creating Answer and sending to other user")
+    if(offer){
+    const Answer = await getAnswer(offer);
+    if(Answer){
+      console.log(Answer)
+    socket.emit("call:sendAnswer", {tonext:from, Answer})
+  }}
+}
+
+const sendStreams = async() => {
+  console.log("Video i on", meroVideo)
+  if (meroVideo) {
+    console.log("mero VIDEO", meroVideo);
+    for (const track of meroVideo.getTracks()) {
+      console.log(track)
+      peerConnection.addTrack(track, meroVideo);
+    }
+  }
+};
+
+    useEffect(() => {
+      peerConnection.addEventListener("track", async (ev) => {
+        const remoteStream = ev.streams;
+        console.log("GOT TRACKS!!");
+        console.log(remoteStream);
+      });
+    }, []);
 
     useEffect(()=>{
       mySteamHandler();
       socket.on("user:joined", ({name, id})=>{
-        setOtheruser({name, id})
-    })
+        setOtheruser(id)
+        createOfferHandler(id)
+    },[socket])
+
     socket.on("collect:offer" ,({from , offer})=>{
-      // console.log(from ,offer)
       if(from && offer){
-      collectOfferHandler(from, offer);
+        console.log("I am getting offer")
+        console.log(from)
+        setOtheruser(from)
+        sendAnswer(from ,offer)
       }
     })
-    return(()=>{
+    socket.on("collect:pleaseAcceptAnswer", ({from, Answer})=>{
+      console.log(from, Answer)
+      if(from && Answer){
+        setLocalDescriptionofAnswer(Answer)
+        console.log("Call Accepted 2")
+        if(meroVideo){
+        sendStreams()
+        }
+        
+      }
+    })
+
       socket.off("user:joined", ()=>{})
       socket.off("collect:offer", ()=>{})
-    })  
-    }, [socket])
+      socket.off("collect:pleaseAcceptAnswer",({})=>{})
+
+    }, [socket]);
+
+
 
     useEffect(() => {
-        if (videoRef.current && meroVideo) {
-            videoRef.current.srcObject = meroVideo;
+        if (meroVideoRef.current && meroVideo) {
+            meroVideoRef.current.srcObject = meroVideo;
         }
     }, [meroVideo]);
 
+    useEffect(() => {
+        if (timroVideoRef.current && timroVideo) {
+          timroVideoRef.current.srcObject = timroVideo;
+        }
+    }, [timroVideo]);
+
+
   return (
-    <div>Room { otheruser.id ? <h1>some one just connected: {otheruser.name}</h1>:<h1>No one is here</h1>}
+    <div>Room { otheruser ? <h1>some one just connected: {otheruser}</h1>:<h1>No one is here</h1>}
     <h3>..................................</h3>
   {
     meroVideo &&<video
-            ref={videoRef} 
+            ref={meroVideoRef} 
             data-testid="peer-video"
             style={{ width: "500px", height: '500px' }}
             autoPlay
             muted={true}
         />
-  }   
+  }  
+  {
+    timroVideo &&<video
+            ref={timroVideoRef}
+            data-testid="peer-video"
+            style={{ width: "500px", height: '500px' }}
+            autoPlay
+            muted={true}
+        />
+  }
     </div>
   )
 }
